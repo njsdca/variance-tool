@@ -17,18 +17,22 @@ function App() {
   const [allData, setAllData] = useState<VarianceRecord[]>([]);
   const [filters, setFilters] = useState<Filters>({ account: '', mecCustomer: '', salesRep: '', period: '' });
   const [isParsingFile, setIsParsingFile] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [pendingFile, setPendingFile] = useState<{ file: File; records: VarianceRecord[] } | null>(null);
   const [availablePeriods, setAvailablePeriods] = useState<Period[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Load all data on mount
   const loadAllData = useCallback(async () => {
+    setIsLoadingData(true);
     try {
       const { records, periods } = await getAllRecordsCombined();
       setAllData(records);
       setAvailablePeriods(periods);
     } catch (error) {
       console.error('Error loading data:', error);
+    } finally {
+      setIsLoadingData(false);
     }
   }, []);
 
@@ -133,7 +137,14 @@ function App() {
               <h2>Variance Data</h2>
             </div>
             <div className="card-body">
-              <DataTable data={tableData} />
+              {isLoadingData ? (
+                <div className="loading-state">
+                  <div className="loading-spinner"></div>
+                  <p>Loading data...</p>
+                </div>
+              ) : (
+                <DataTable data={tableData} />
+              )}
             </div>
           </div>
         </div>
