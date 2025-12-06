@@ -1,57 +1,202 @@
-import Dexie, { type EntityTable } from 'dexie';
-import type { MonthlyData } from '../types/variance';
+import { createClient } from '@supabase/supabase-js';
+import type { MonthlyData, VarianceRecord } from '../types/variance';
 
-const db = new Dexie('VarianceToolDB') as Dexie & {
-  monthlyData: EntityTable<MonthlyData, 'id'>;
-};
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-db.version(1).stores({
-  monthlyData: '++id, name, month, year, uploadDate',
-});
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables');
+}
 
-export { db };
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Convert snake_case DB record to camelCase
+function toVarianceRecord(dbRecord: Record<string, unknown>): VarianceRecord {
+  return {
+    varianceType: dbRecord.variance_type as string || '',
+    customer: dbRecord.customer as string || '',
+    lineKey: dbRecord.line_key as string,
+    promotionType: dbRecord.promotion_type as string,
+    productGroup: dbRecord.product_group as string,
+    promotionName: dbRecord.promotion_name as string || '',
+    lbe2ExpectedSpend: dbRecord.lbe2_expected_spend as number,
+    throughput: dbRecord.throughput as number,
+    sumOfVariance: dbRecord.sum_of_variance as number || 0,
+    include: dbRecord.include as boolean,
+    account: dbRecord.account as string,
+    mecCustomer: dbRecord.mec_customer as string,
+    salesRep: dbRecord.sales_rep as string,
+    channel: dbRecord.channel as string,
+    firstReceiver: dbRecord.first_receiver as string,
+  };
+}
+
+// Convert camelCase record to snake_case for DB
+function toDbRecord(record: VarianceRecord, monthlyDataId: number) {
+  return {
+    monthly_data_id: monthlyDataId,
+    variance_type: record.varianceType,
+    customer: record.customer,
+    line_key: record.lineKey,
+    promotion_type: record.promotionType,
+    product_group: record.productGroup,
+    promotion_name: record.promotionName,
+    lbe2_expected_spend: record.lbe2ExpectedSpend,
+    throughput: record.throughput,
+    sum_of_variance: record.sumOfVariance,
+    include: record.include,
+    account: record.account,
+    mec_customer: record.mecCustomer,
+    sales_rep: record.salesRep,
+    channel: record.channel,
+    first_receiver: record.firstReceiver,
+  };
+}
 
 export async function saveMonthlyData(data: Omit<MonthlyData, 'id'>): Promise<number> {
-  const id = await db.monthlyData.add(data as MonthlyData);
-  return id as number;
+  // Insert monthly data record
+  const { data: monthlyData, error: monthlyError } = await supabase
+    .from('monthly_data')
+    .insert({
+      name: data.name,
+      month: data.month,
+      year: data.year,
+      upload_date: data.uploadDate.toISOString(),
+    })
+    .select('id')
+    .single();
+
+  if (monthlyError) {
+    console.error('Error saving monthly data:', monthlyError);
+    throw monthlyError;
+  }
+
+  const monthlyDataId = monthlyData.id;
+
+  // Insert all variance records in batches
+  const batchSize = 500;
+  for (let i = 0; i < data.records.length; i += batchSize) {
+    const batch = data.records.slice(i, i + batchSize);
+    const dbRecords = batch.map((record) => toDbRecord(record, monthlyDataId));
+
+    const { error: recordsError } = await supabase
+      .from('variance_records')
+      .insert(dbRecords);
+
+    if (recordsError) {
+      console.error('Error saving variance records:', recordsError);
+      throw recordsError;
+    }
+  }
+
+  return monthlyDataId;
 }
 
 export async function getAllMonthlyData(): Promise<MonthlyData[]> {
-  return await db.monthlyData.orderBy('uploadDate').reverse().toArray();
+  const { data: monthlyDataList, error } = await supabase
+    .from('monthly_data')
+    .select('*')
+    .order('upload_date', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching monthly data:', error);
+    return [];
+  }
+
+  // Fetch records for each monthly data
+  const results: MonthlyData[] = [];
+  for (const md of monthlyDataList) {
+    const { data: records } = await supabase
+      .from('variance_records')
+      .select('*')
+      .eq('monthly_data_id', md.id);
+
+    results.push({
+      id: md.id,
+      name: md.name,
+      month: md.month,
+      year: md.year,
+      uploadDate: new Date(md.upload_date),
+      records: (records || []).map(toVarianceRecord),
+    });
+  }
+
+  return results;
 }
 
 export async function getMonthlyDataById(id: number): Promise<MonthlyData | undefined> {
-  return await db.monthlyData.get(id);
+  const { data: md, error } = await supabase
+    .from('monthly_data')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error || !md) {
+    return undefined;
+  }
+
+  const { data: records } = await supabase
+    .from('variance_records')
+    .select('*')
+    .eq('monthly_data_id', id);
+
+  return {
+    id: md.id,
+    name: md.name,
+    month: md.month,
+    year: md.year,
+    uploadDate: new Date(md.upload_date),
+    records: (records || []).map(toVarianceRecord),
+  };
 }
 
 export async function deleteMonthlyData(id: number): Promise<void> {
-  await db.monthlyData.delete(id);
+  const { error } = await supabase
+    .from('monthly_data')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting monthly data:', error);
+    throw error;
+  }
 }
 
 export async function getAllRecordsCombined(): Promise<{
-  records: import('../types/variance').VarianceRecord[];
+  records: VarianceRecord[];
   periods: { month: string; year: number; label: string }[];
 }> {
-  const allData = await db.monthlyData.orderBy('uploadDate').reverse().toArray();
+  // Get all monthly data
+  const { data: monthlyDataList, error: mdError } = await supabase
+    .from('monthly_data')
+    .select('*')
+    .order('upload_date', { ascending: false });
 
-  const records: import('../types/variance').VarianceRecord[] = [];
+  if (mdError || !monthlyDataList) {
+    console.error('Error fetching monthly data:', mdError);
+    return { records: [], periods: [] };
+  }
+
+  const records: VarianceRecord[] = [];
   const periodsSet = new Map<string, { month: string; year: number }>();
 
-  for (const monthlyData of allData) {
-    const periodKey = `${monthlyData.month}-${monthlyData.year}`;
+  for (const md of monthlyDataList) {
+    const periodKey = `${md.month}-${md.year}`;
 
-    // Track unique periods
     if (!periodsSet.has(periodKey)) {
-      periodsSet.set(periodKey, { month: monthlyData.month, year: monthlyData.year });
+      periodsSet.set(periodKey, { month: md.month, year: md.year });
     }
 
-    // Add records with period info
-    for (const record of monthlyData.records) {
-      records.push({
-        ...record,
-        periodMonth: monthlyData.month,
-        periodYear: String(monthlyData.year),
-      });
+    const { data: varRecords } = await supabase
+      .from('variance_records')
+      .select('*')
+      .eq('monthly_data_id', md.id);
+
+    for (const record of varRecords || []) {
+      const varRecord = toVarianceRecord(record);
+      varRecord.periodMonth = md.month;
+      varRecord.periodYear = String(md.year);
+      records.push(varRecord);
     }
   }
 
