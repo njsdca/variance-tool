@@ -77,24 +77,31 @@ export async function saveMonthlyData(data: Omit<MonthlyData, 'id'>): Promise<nu
   console.log(`Created monthly_data with id: ${monthlyDataId}`);
 
   // Insert all variance records in batches
-  const batchSize = 500;
+  const batchSize = 100; // Reduced batch size to avoid payload limits
   let totalInserted = 0;
+  const totalBatches = Math.ceil(data.records.length / batchSize);
 
   for (let i = 0; i < data.records.length; i += batchSize) {
+    const batchNum = Math.floor(i / batchSize) + 1;
     const batch = data.records.slice(i, i + batchSize);
     const dbRecords = batch.map((record) => toDbRecord(record, monthlyDataId));
 
-    const { error: recordsError } = await supabase
-      .from('variance_records')
-      .insert(dbRecords);
+    try {
+      const { error: recordsError } = await supabase
+        .from('variance_records')
+        .insert(dbRecords);
 
-    if (recordsError) {
-      console.error(`Error saving variance records batch ${i / batchSize + 1}:`, recordsError);
-      throw recordsError;
+      if (recordsError) {
+        console.error(`Error in batch ${batchNum}/${totalBatches}:`, recordsError);
+        throw recordsError;
+      }
+
+      totalInserted += batch.length;
+      console.log(`Batch ${batchNum}/${totalBatches}: ${batch.length} records (total: ${totalInserted})`);
+    } catch (err) {
+      console.error(`Exception in batch ${batchNum}:`, err);
+      throw err;
     }
-
-    totalInserted += batch.length;
-    console.log(`Inserted batch ${i / batchSize + 1}: ${batch.length} records (total: ${totalInserted})`);
   }
 
   console.log(`Finished saving ${totalInserted} variance records`);
