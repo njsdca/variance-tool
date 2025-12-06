@@ -155,38 +155,47 @@ export function VarianceChart({ data }: VarianceChartProps) {
     return null;
   }
 
+  // Calculate dynamic height based on number of bars
+  const chartHeight = Math.max(380, Math.min(500, chartData.length * 35 + 150));
+
   return (
     <div className="card chart-card">
       <div className="card-header">
         <h3>Variance by Promotion Type</h3>
       </div>
       <div className="card-body chart-body">
-        <ResponsiveContainer width="100%" height={280}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart
             data={chartData}
-            margin={{ top: 20, right: 30, left: 20, bottom: 40 }}
+            margin={{ top: 20, right: 30, left: 10, bottom: 80 }}
             stackOffset="sign"
+            barCategoryGap="20%"
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
             <XAxis
               dataKey="promotionType"
               tick={{ fontSize: 11, fill: '#64748b' }}
-              angle={-25}
+              angle={-40}
               textAnchor="end"
-              height={50}
+              height={90}
               interval={0}
+              tickMargin={5}
             />
             <YAxis
               tick={{ fontSize: 11, fill: '#64748b' }}
               tickFormatter={(value) => formatCurrency(value)}
-              width={70}
+              width={75}
+              axisLine={false}
+              tickLine={false}
             />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0, 0, 0, 0.04)' }} />
             <Legend
-              wrapperStyle={{ fontSize: 10, paddingTop: 10 }}
+              wrapperStyle={{ fontSize: 11, paddingTop: 16 }}
               formatter={(value) => getShortLabel(value)}
+              iconType="square"
+              iconSize={10}
             />
-            <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1} />
+            <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1.5} />
             {varianceTypes.map((varianceType) => (
               <Bar
                 key={varianceType}
@@ -194,6 +203,7 @@ export function VarianceChart({ data }: VarianceChartProps) {
                 stackId="stack"
                 fill={getVarianceTypeColor(varianceType)}
                 name={varianceType}
+                radius={[2, 2, 0, 0]}
               />
             ))}
           </BarChart>
