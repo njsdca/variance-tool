@@ -1018,6 +1018,89 @@ h3 {
   color: var(--gray-500);
 }
 
+/* Variance Chart */
+.chart-card {
+  flex-shrink: 0;
+}
+
+.chart-body {
+  padding: 0.5rem 0.5rem 0.5rem 0;
+}
+
+.chart-tooltip {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  padding: 0.75rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  font-family: var(--font-body);
+}
+
+.chart-tooltip-label {
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--gray-800);
+  margin: 0 0 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.chart-tooltip-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.chart-tooltip-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.chart-tooltip-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.chart-tooltip-name {
+  color: var(--gray-600);
+  flex: 1;
+}
+
+.chart-tooltip-value {
+  font-family: var(--font-mono);
+  color: var(--gray-800);
+  font-weight: 500;
+}
+
+.chart-tooltip-total {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--gray-100);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.chart-tooltip-total span:last-child {
+  font-family: var(--font-mono);
+}
+
+/* Recharts overrides */
+.recharts-legend-item-text {
+  color: var(--gray-600) !important;
+  font-size: 0.6875rem !important;
+}
+
+.recharts-cartesian-axis-tick-value {
+  font-family: var(--font-body);
+}
+
 /* In-card Loading State */
 .loading-state {
   display: flex;

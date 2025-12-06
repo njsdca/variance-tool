@@ -7,6 +7,7 @@ import { CommentaryPanel } from './components/CommentaryPanel';
 import { DatasetManager } from './components/DatasetManager';
 import { SaveModal } from './components/SaveModal';
 import { ExportModal } from './components/ExportModal';
+import { VarianceChart } from './components/VarianceChart';
 import { parseFile } from './utils/fileParser';
 import { saveMonthlyData, getAllRecordsCombined } from './db/database';
 import { exportToCSV } from './utils/csvExport';
@@ -148,6 +149,9 @@ function App() {
               </div>
             </div>
           )}
+
+          {/* Variance Chart */}
+          {tableData.length > 0 && <VarianceChart data={tableData} />}
 
           {/* Data Table */}
           <div className="card table-card">
