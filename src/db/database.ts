@@ -84,7 +84,7 @@ export async function saveMonthlyData(data: Omit<MonthlyData, 'id'>): Promise<nu
     const batch = data.records.slice(i, i + batchSize);
     const dbRecords = batch.map((record) => toDbRecord(record, monthlyDataId));
 
-    const { error: recordsError, count } = await supabase
+    const { error: recordsError } = await supabase
       .from('variance_records')
       .insert(dbRecords);
 
