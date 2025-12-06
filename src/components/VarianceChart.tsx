@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   BarChart,
   Bar,
@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
+import html2canvas from 'html2canvas';
 import type { VarianceRecord } from '../types/variance';
 import { formatCurrency } from '../utils/commentaryGenerator';
 
@@ -91,6 +92,53 @@ function CustomTooltip({ active, payload, label }: {
 }
 
 export function VarianceChart({ data }: VarianceChartProps) {
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [exporting, setExporting] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleExportPNG = async () => {
+    if (!chartRef.current) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(chartRef.current, {
+        backgroundColor: '#ffffff',
+        scale: 2, // Higher resolution
+      });
+      const link = document.createElement('a');
+      link.download = `variance-chart-${new Date().toISOString().split('T')[0]}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (err) {
+      console.error('Failed to export chart:', err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleCopyToClipboard = async () => {
+    if (!chartRef.current) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(chartRef.current, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+      });
+      canvas.toBlob(async (blob) => {
+        if (blob) {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob }),
+          ]);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }
+      }, 'image/png');
+    } catch (err) {
+      console.error('Failed to copy chart:', err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // Transform data for stacked bar chart
   // X-axis: Promotion Types, Stacks: Variance Types
   const { chartData, varianceTypes } = useMemo(() => {
@@ -162,8 +210,32 @@ export function VarianceChart({ data }: VarianceChartProps) {
     <div className="card chart-card">
       <div className="card-header">
         <h3>Variance by Promotion Type</h3>
+        <div className="chart-export-actions">
+          {copied ? (
+            <span className="chart-copied-msg">Copied!</span>
+          ) : (
+            <>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={handleCopyToClipboard}
+                disabled={exporting}
+                title="Copy chart to clipboard for pasting into PowerPoint"
+              >
+                {exporting ? 'Copying...' : 'Copy to Clipboard'}
+              </button>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={handleExportPNG}
+                disabled={exporting}
+                title="Download chart as PNG image"
+              >
+                {exporting ? 'Exporting...' : 'Export PNG'}
+              </button>
+            </>
+          )}
+        </div>
       </div>
-      <div className="card-body chart-body">
+      <div className="card-body chart-body" ref={chartRef}>
         <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart
             data={chartData}
