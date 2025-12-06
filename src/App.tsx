@@ -25,7 +25,7 @@ function App() {
     customer: [],
     varianceType: [],
     promotionType: [],
-    period: '',
+    period: [],
   });
   const [isParsingFile, setIsParsingFile] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
@@ -63,10 +63,10 @@ function App() {
       if (filters.varianceType.length > 0 && !filters.varianceType.includes(record.varianceType || '')) return false;
       if (filters.promotionType.length > 0 && !filters.promotionType.includes(record.promotionType || '')) return false;
 
-      // Single select period filter
-      if (filters.period) {
+      // Period filter (now multi-select)
+      if (filters.period.length > 0) {
         const recordPeriod = `${record.periodMonth} ${record.periodYear}`;
-        if (recordPeriod !== filters.period) return false;
+        if (!filters.period.includes(recordPeriod)) return false;
       }
       return true;
     });
@@ -113,7 +113,7 @@ function App() {
     // Reload all data to include the new upload
     await loadAllData();
     // Set filter to the newly uploaded period
-    setFilters((f) => ({ ...f, period: `${month} ${year}` }));
+    setFilters((f) => ({ ...f, period: [`${month} ${year}`] }));
     // Trigger dataset manager refresh
     setRefreshTrigger((t) => t + 1);
   }, [pendingFile, loadAllData]);

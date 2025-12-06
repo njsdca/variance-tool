@@ -61,7 +61,7 @@ export interface Filters {
   customer: string[];
   varianceType: string[];
   promotionType: string[];
-  period: string; // "all" or "Month Year" format
+  period: string[];
 }
 
 // Mapping of variance types to commentary categories

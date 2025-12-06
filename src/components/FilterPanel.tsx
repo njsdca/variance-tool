@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import type { VarianceRecord, Filters } from '../types/variance';
 
 type Period = { month: string; year: number; label: string };
@@ -10,7 +10,7 @@ interface FilterPanelProps {
   availablePeriods?: Period[];
 }
 
-interface MultiSelectFilterProps {
+interface SearchableMultiSelectProps {
   label: string;
   options: string[];
   selected: string[];
@@ -18,13 +18,56 @@ interface MultiSelectFilterProps {
   allLabel: string;
 }
 
-function MultiSelectFilter({ label, options, selected, onChange, allLabel }: MultiSelectFilterProps) {
-  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
-    onChange(selectedOptions);
+function SearchableMultiSelect({ label, options, selected, onChange, allLabel }: SearchableMultiSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearch('');
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Focus search when dropdown opens
+  useEffect(() => {
+    if (isOpen && searchRef.current) {
+      searchRef.current.focus();
+    }
+  }, [isOpen]);
+
+  const filteredOptions = useMemo(() => {
+    if (!search) return options;
+    const searchLower = search.toLowerCase();
+    return options.filter(opt => opt.toLowerCase().includes(searchLower));
+  }, [options, search]);
+
+  const handleToggle = (option: string) => {
+    if (selected.includes(option)) {
+      onChange(selected.filter(s => s !== option));
+    } else {
+      onChange([...selected, option]);
+    }
   };
 
-  const handleClear = () => {
+  const handleSelectAll = () => {
+    if (selected.length === options.length) {
+      onChange([]);
+    } else {
+      onChange([...options]);
+    }
+  };
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
     onChange([]);
   };
 
@@ -35,26 +78,18 @@ function MultiSelectFilter({ label, options, selected, onChange, allLabel }: Mul
       : `${selected.length} selected`;
 
   return (
-    <div className="filter-group">
+    <div className="filter-group" ref={containerRef}>
       <label className="filter-label">{label}</label>
-      <div className="filter-input-wrapper">
-        <select
-          className="filter-select"
-          multiple
-          value={selected}
-          onChange={handleChange}
-          size={1}
-          title={selected.length > 0 ? selected.join(', ') : allLabel}
+      <div className="filter-dropdown-wrapper">
+        <button
+          type="button"
+          className="filter-dropdown-trigger"
+          onClick={() => setIsOpen(!isOpen)}
+          title={selected.length > 0 ? selected.join(', ') : undefined}
         >
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <div className="filter-display" title={selected.length > 0 ? selected.join(', ') : undefined}>
-          {displayValue}
-        </div>
+          <span className="filter-dropdown-value">{displayValue}</span>
+          <span className="filter-dropdown-arrow">{isOpen ? '▲' : '▼'}</span>
+        </button>
         {selected.length > 0 && (
           <button
             className="filter-clear-btn"
@@ -64,6 +99,46 @@ function MultiSelectFilter({ label, options, selected, onChange, allLabel }: Mul
           >
             ✕
           </button>
+        )}
+        {isOpen && (
+          <div className="filter-dropdown-menu">
+            <div className="filter-dropdown-search">
+              <input
+                ref={searchRef}
+                type="text"
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="filter-search-input"
+              />
+            </div>
+            <div className="filter-dropdown-options">
+              {options.length > 1 && (
+                <label className="filter-dropdown-option filter-dropdown-select-all">
+                  <input
+                    type="checkbox"
+                    checked={selected.length === options.length}
+                    onChange={handleSelectAll}
+                  />
+                  <span>Select All ({options.length})</span>
+                </label>
+              )}
+              {filteredOptions.length === 0 ? (
+                <div className="filter-dropdown-empty">No matches found</div>
+              ) : (
+                filteredOptions.map((option) => (
+                  <label key={option} className="filter-dropdown-option">
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(option)}
+                      onChange={() => handleToggle(option)}
+                    />
+                    <span>{option}</span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -96,27 +171,14 @@ export function FilterPanel({ data, filters, onFilterChange, availablePeriods = 
       customers: [...customers].sort(),
       varianceTypes: [...varianceTypes].sort(),
       promotionTypes: [...promotionTypes].sort(),
+      periods: availablePeriods.map(p => p.label),
     };
-  }, [data]);
+  }, [data, availablePeriods]);
 
-  const handleMultiChange = (field: keyof Omit<Filters, 'period'>, values: string[]) => {
+  const handleChange = (field: keyof Filters, values: string[]) => {
     onFilterChange({
       ...filters,
       [field]: values,
-    });
-  };
-
-  const handlePeriodChange = (value: string) => {
-    onFilterChange({
-      ...filters,
-      period: value,
-    });
-  };
-
-  const handleClearPeriod = () => {
-    onFilterChange({
-      ...filters,
-      period: '',
     });
   };
 
@@ -128,7 +190,7 @@ export function FilterPanel({ data, filters, onFilterChange, availablePeriods = 
       customer: [],
       varianceType: [],
       promotionType: [],
-      period: '',
+      period: [],
     });
   };
 
@@ -139,85 +201,65 @@ export function FilterPanel({ data, filters, onFilterChange, availablePeriods = 
     filters.customer.length > 0 ||
     filters.varianceType.length > 0 ||
     filters.promotionType.length > 0 ||
-    filters.period !== '';
+    filters.period.length > 0;
 
   return (
     <div className="filter-panel">
       {availablePeriods.length > 0 && (
-        <div className="filter-group">
-          <label className="filter-label">Period</label>
-          <div className="filter-input-wrapper">
-            <select
-              className="filter-select filter-select-single"
-              value={filters.period}
-              onChange={(e) => handlePeriodChange(e.target.value)}
-            >
-              <option value="">All Periods</option>
-              {availablePeriods.map((period) => (
-                <option key={period.label} value={period.label}>
-                  {period.label}
-                </option>
-              ))}
-            </select>
-            {filters.period && (
-              <button
-                className="filter-clear-btn"
-                onClick={handleClearPeriod}
-                title="Clear filter"
-                type="button"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
+        <SearchableMultiSelect
+          label="Period"
+          options={filterOptions.periods}
+          selected={filters.period}
+          onChange={(v) => handleChange('period', v)}
+          allLabel="All Periods"
+        />
       )}
 
-      <MultiSelectFilter
+      <SearchableMultiSelect
         label="Variance Type"
         options={filterOptions.varianceTypes}
         selected={filters.varianceType}
-        onChange={(v) => handleMultiChange('varianceType', v)}
+        onChange={(v) => handleChange('varianceType', v)}
         allLabel="All Variance Types"
       />
 
-      <MultiSelectFilter
+      <SearchableMultiSelect
         label="Promotion Type"
         options={filterOptions.promotionTypes}
         selected={filters.promotionType}
-        onChange={(v) => handleMultiChange('promotionType', v)}
+        onChange={(v) => handleChange('promotionType', v)}
         allLabel="All Promotion Types"
       />
 
-      <MultiSelectFilter
+      <SearchableMultiSelect
         label="Customer"
         options={filterOptions.customers}
         selected={filters.customer}
-        onChange={(v) => handleMultiChange('customer', v)}
+        onChange={(v) => handleChange('customer', v)}
         allLabel="All Customers"
       />
 
-      <MultiSelectFilter
+      <SearchableMultiSelect
         label="Account"
         options={filterOptions.accounts}
         selected={filters.account}
-        onChange={(v) => handleMultiChange('account', v)}
+        onChange={(v) => handleChange('account', v)}
         allLabel="All Accounts"
       />
 
-      <MultiSelectFilter
+      <SearchableMultiSelect
         label="MEC Customer"
         options={filterOptions.mecCustomers}
         selected={filters.mecCustomer}
-        onChange={(v) => handleMultiChange('mecCustomer', v)}
+        onChange={(v) => handleChange('mecCustomer', v)}
         allLabel="All MEC Customers"
       />
 
-      <MultiSelectFilter
+      <SearchableMultiSelect
         label="Sales Rep"
         options={filterOptions.salesReps}
         selected={filters.salesRep}
-        onChange={(v) => handleMultiChange('salesRep', v)}
+        onChange={(v) => handleChange('salesRep', v)}
         allLabel="All Sales Reps"
       />
 
