@@ -33,6 +33,7 @@ function App() {
   const [availablePeriods, setAvailablePeriods] = useState<Period[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showFilters, setShowFilters] = useState(true);
 
   // Load all data on mount
   const loadAllData = useCallback(async () => {
@@ -146,21 +147,32 @@ function App() {
         <div className="main-content">
           {/* Filter Panel */}
           {allData.length > 0 && (
-            <div className="card">
+            <div className={`card filter-card ${showFilters ? '' : 'collapsed'}`}>
               <div className="card-header">
-                <h3>Filters</h3>
+                <div className="filter-header-left">
+                  <button
+                    className="filter-toggle-btn"
+                    onClick={() => setShowFilters(!showFilters)}
+                    title={showFilters ? 'Hide filters' : 'Show filters'}
+                  >
+                    {showFilters ? '▼' : '▶'}
+                  </button>
+                  <h3>Filters</h3>
+                </div>
                 <span className="record-count">
                   {tableData.length.toLocaleString()} of {allData.filter(r => r.include).length.toLocaleString()} included records
                 </span>
               </div>
-              <div className="card-body">
-                <FilterPanel
-                  data={allData}
-                  filters={filters}
-                  onFilterChange={setFilters}
-                  availablePeriods={availablePeriods}
-                />
-              </div>
+              {showFilters && (
+                <div className="card-body">
+                  <FilterPanel
+                    data={allData}
+                    filters={filters}
+                    onFilterChange={setFilters}
+                    availablePeriods={availablePeriods}
+                  />
+                </div>
+              )}
             </div>
           )}
 

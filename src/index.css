@@ -277,6 +277,36 @@ h3 {
 }
 
 /* Filter Panel */
+.filter-card.collapsed {
+  flex-shrink: 0;
+}
+
+.filter-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filter-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--gray-400);
+  cursor: pointer;
+  font-size: 0.625rem;
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+
+.filter-toggle-btn:hover {
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
 .filter-panel {
   display: flex;
   flex-wrap: wrap;
