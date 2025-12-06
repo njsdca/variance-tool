@@ -16,22 +16,19 @@ type Period = { month: string; year: number; label: string };
 function App() {
   const [allData, setAllData] = useState<VarianceRecord[]>([]);
   const [filters, setFilters] = useState<Filters>({ account: '', mecCustomer: '', salesRep: '', period: '' });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isParsingFile, setIsParsingFile] = useState(false);
   const [pendingFile, setPendingFile] = useState<{ file: File; records: VarianceRecord[] } | null>(null);
   const [availablePeriods, setAvailablePeriods] = useState<Period[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Load all data on mount
   const loadAllData = useCallback(async () => {
-    setIsLoading(true);
     try {
       const { records, periods } = await getAllRecordsCombined();
       setAllData(records);
       setAvailablePeriods(periods);
     } catch (error) {
       console.error('Error loading data:', error);
-    } finally {
-      setIsLoading(false);
     }
   }, []);
 
@@ -58,17 +55,20 @@ function App() {
     return filteredData.filter((record) => record.include === true);
   }, [filteredData]);
 
-  const handleFileSelect = useCallback(async (file: File) => {
-    setIsLoading(true);
-    try {
-      const records = await parseFile(file);
-      setPendingFile({ file, records });
-    } catch (error) {
-      console.error('Error parsing file:', error);
-      alert('Error parsing file. Please check the format and try again.');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleFileSelect = useCallback((file: File) => {
+    setIsParsingFile(true);
+    // Use setTimeout to allow the loading overlay to render before blocking parse
+    setTimeout(async () => {
+      try {
+        const records = await parseFile(file);
+        setPendingFile({ file, records });
+      } catch (error) {
+        console.error('Error parsing file:', error);
+        alert('Error parsing file. Please check the format and try again.');
+      } finally {
+        setIsParsingFile(false);
+      }
+    }, 50);
   }, []);
 
   const handleSave = useCallback(async (name: string, month: string, year: number) => {
@@ -102,7 +102,7 @@ function App() {
           <img src="/Chomps.webp" alt="Chomps" className="header-logo" />
           <span className="header-title">Variance Tool</span>
         </div>
-        <FileUpload onFileSelect={handleFileSelect} isLoading={isLoading} />
+        <FileUpload onFileSelect={handleFileSelect} isLoading={isParsingFile} />
       </header>
 
       <main className="app-main">
@@ -154,7 +154,7 @@ function App() {
         />
       )}
 
-      {isLoading && (
+      {isParsingFile && (
         <div className="loading-overlay">
           <div className="loading-spinner"></div>
           <p>Processing file...</p>
