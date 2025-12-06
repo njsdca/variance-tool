@@ -6,8 +6,10 @@ import { TotalsCards } from './components/TotalsCards';
 import { CommentaryPanel } from './components/CommentaryPanel';
 import { DatasetManager } from './components/DatasetManager';
 import { SaveModal } from './components/SaveModal';
+import { ExportModal } from './components/ExportModal';
 import { parseFile } from './utils/fileParser';
 import { saveMonthlyData, getAllRecordsCombined } from './db/database';
+import { exportToCSV } from './utils/csvExport';
 import type { VarianceRecord, Filters } from './types/variance';
 import './index.css';
 
@@ -21,6 +23,7 @@ function App() {
   const [pendingFile, setPendingFile] = useState<{ file: File; records: VarianceRecord[] } | null>(null);
   const [availablePeriods, setAvailablePeriods] = useState<Period[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // Load all data on mount
   const loadAllData = useCallback(async () => {
@@ -58,6 +61,11 @@ function App() {
   const tableData = useMemo(() => {
     return filteredData.filter((record) => record.include === true);
   }, [filteredData]);
+
+  // All included records (for export all option)
+  const allIncludedData = useMemo(() => {
+    return allData.filter((record) => record.include === true);
+  }, [allData]);
 
   const handleFileSelect = useCallback((file: File) => {
     setIsParsingFile(true);
@@ -99,6 +107,16 @@ function App() {
     setPendingFile(null);
   }, []);
 
+  const handleExport = useCallback((type: 'current' | 'all') => {
+    const dataToExport = type === 'current' ? tableData : allIncludedData;
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = type === 'current'
+      ? `variance-data-filtered-${timestamp}.csv`
+      : `variance-data-all-${timestamp}.csv`;
+    exportToCSV(dataToExport, filename);
+    setShowExportModal(false);
+  }, [tableData, allIncludedData]);
+
   return (
     <div className="app">
       <header className="app-header">
@@ -135,6 +153,14 @@ function App() {
           <div className="card table-card">
             <div className="card-header">
               <h2>Variance Data</h2>
+              {tableData.length > 0 && (
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowExportModal(true)}
+                >
+                  Export CSV
+                </button>
+              )}
             </div>
             <div className="card-body">
               {isLoadingData ? (
@@ -162,6 +188,15 @@ function App() {
           recordCount={pendingFile.records.length}
           onSave={handleSave}
           onCancel={handleCancelSave}
+        />
+      )}
+
+      {showExportModal && (
+        <ExportModal
+          currentViewCount={tableData.length}
+          allDataCount={allIncludedData.length}
+          onExport={handleExport}
+          onCancel={() => setShowExportModal(false)}
         />
       )}
 
