@@ -193,6 +193,7 @@ export function VarianceChart({ data, activeFilter, onFilterChange }: VarianceCh
           <BarChart
             data={chartData}
             margin={{ top: 20, right: 30, left: 20, bottom: 40 }}
+            stackOffset="sign"
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis
