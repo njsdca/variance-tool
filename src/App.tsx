@@ -4,6 +4,7 @@ import { FilterPanel } from './components/FilterPanel';
 import { DataTable } from './components/DataTable';
 import { TotalsCards } from './components/TotalsCards';
 import { CommentaryPanel } from './components/CommentaryPanel';
+import { DatasetManager } from './components/DatasetManager';
 import { SaveModal } from './components/SaveModal';
 import { parseFile } from './utils/fileParser';
 import { saveMonthlyData, getAllRecordsCombined } from './db/database';
@@ -18,6 +19,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [pendingFile, setPendingFile] = useState<{ file: File; records: VarianceRecord[] } | null>(null);
   const [availablePeriods, setAvailablePeriods] = useState<Period[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Load all data on mount
   const loadAllData = useCallback(async () => {
@@ -85,6 +87,8 @@ function App() {
     await loadAllData();
     // Set filter to the newly uploaded period
     setFilters((f) => ({ ...f, period: `${month} ${year}` }));
+    // Trigger dataset manager refresh
+    setRefreshTrigger((t) => t + 1);
   }, [pendingFile, loadAllData]);
 
   const handleCancelSave = useCallback(() => {
@@ -137,6 +141,7 @@ function App() {
         <div className="sidebar">
           <TotalsCards data={tableData} />
           <CommentaryPanel data={tableData} />
+          <DatasetManager onDataChange={loadAllData} refreshTrigger={refreshTrigger} />
         </div>
       </main>
 

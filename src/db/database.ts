@@ -207,6 +207,59 @@ export async function deleteMonthlyData(id: number): Promise<void> {
   }
 }
 
+export async function renameMonthlyData(id: number, newName: string): Promise<void> {
+  const { error } = await supabase
+    .from('monthly_data')
+    .update({ name: newName })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error renaming monthly data:', error);
+    throw error;
+  }
+}
+
+export interface DatasetInfo {
+  id: number;
+  name: string;
+  month: string;
+  year: number;
+  uploadDate: Date;
+  recordCount: number;
+}
+
+export async function getDatasetList(): Promise<DatasetInfo[]> {
+  const { data: monthlyDataList, error } = await supabase
+    .from('monthly_data')
+    .select('*')
+    .order('upload_date', { ascending: false });
+
+  if (error || !monthlyDataList) {
+    console.error('Error fetching dataset list:', error);
+    return [];
+  }
+
+  // Get record counts for each dataset
+  const datasets: DatasetInfo[] = [];
+  for (const md of monthlyDataList) {
+    const { count } = await supabase
+      .from('variance_records')
+      .select('*', { count: 'exact', head: true })
+      .eq('monthly_data_id', md.id);
+
+    datasets.push({
+      id: md.id,
+      name: md.name,
+      month: md.month,
+      year: md.year,
+      uploadDate: new Date(md.upload_date),
+      recordCount: count || 0,
+    });
+  }
+
+  return datasets;
+}
+
 export async function getAllRecordsCombined(): Promise<{
   records: VarianceRecord[];
   periods: { month: string; year: number; label: string }[];

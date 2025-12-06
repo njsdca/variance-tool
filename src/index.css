@@ -686,6 +686,138 @@ h3 {
   border-color: var(--brand-primary);
 }
 
+/* Dataset Manager */
+.dataset-manager .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dataset-count {
+  background: var(--gray-200);
+  color: var(--gray-600);
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 10px;
+}
+
+.dataset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dataset-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  gap: 0.5rem;
+}
+
+.dataset-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.dataset-name {
+  font-weight: 500;
+  color: var(--gray-800);
+  font-size: 0.875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dataset-name-input {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--brand-primary);
+  border-radius: 4px;
+  outline: none;
+  width: 100%;
+}
+
+.dataset-meta {
+  font-size: 0.75rem;
+  color: var(--gray-600);
+}
+
+.dataset-date {
+  font-size: 0.6875rem;
+  color: var(--gray-400);
+}
+
+.dataset-actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.btn-icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-edit {
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+.btn-edit:hover:not(:disabled) {
+  background: var(--gray-200);
+  color: var(--gray-800);
+}
+
+.btn-delete {
+  background: var(--gray-100);
+  color: var(--gray-500);
+}
+
+.btn-delete:hover:not(:disabled) {
+  background: #fee2e2;
+  color: var(--error);
+}
+
+.btn-save {
+  background: #dcfce7;
+  color: var(--success);
+}
+
+.btn-save:hover:not(:disabled) {
+  background: #bbf7d0;
+}
+
+.btn-cancel {
+  background: var(--gray-100);
+  color: var(--gray-500);
+}
+
+.btn-cancel:hover:not(:disabled) {
+  background: var(--gray-200);
+  color: var(--gray-700);
+}
+
 /* Responsive */
 @media (max-width: 1100px) {
   .app-main {
