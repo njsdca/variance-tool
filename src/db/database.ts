@@ -54,6 +54,8 @@ function toDbRecord(record: VarianceRecord, monthlyDataId: number) {
 }
 
 export async function saveMonthlyData(data: Omit<MonthlyData, 'id'>): Promise<number> {
+  console.log(`Saving monthly data: ${data.name}, ${data.records.length} records`);
+
   // Insert monthly data record
   const { data: monthlyData, error: monthlyError } = await supabase
     .from('monthly_data')
@@ -72,23 +74,30 @@ export async function saveMonthlyData(data: Omit<MonthlyData, 'id'>): Promise<nu
   }
 
   const monthlyDataId = monthlyData.id;
+  console.log(`Created monthly_data with id: ${monthlyDataId}`);
 
   // Insert all variance records in batches
   const batchSize = 500;
+  let totalInserted = 0;
+
   for (let i = 0; i < data.records.length; i += batchSize) {
     const batch = data.records.slice(i, i + batchSize);
     const dbRecords = batch.map((record) => toDbRecord(record, monthlyDataId));
 
-    const { error: recordsError } = await supabase
+    const { error: recordsError, count } = await supabase
       .from('variance_records')
       .insert(dbRecords);
 
     if (recordsError) {
-      console.error('Error saving variance records:', recordsError);
+      console.error(`Error saving variance records batch ${i / batchSize + 1}:`, recordsError);
       throw recordsError;
     }
+
+    totalInserted += batch.length;
+    console.log(`Inserted batch ${i / batchSize + 1}: ${batch.length} records (total: ${totalInserted})`);
   }
 
+  console.log(`Finished saving ${totalInserted} variance records`);
   return monthlyDataId;
 }
 
@@ -106,10 +115,28 @@ export async function getAllMonthlyData(): Promise<MonthlyData[]> {
   // Fetch records for each monthly data
   const results: MonthlyData[] = [];
   for (const md of monthlyDataList) {
-    const { data: records } = await supabase
-      .from('variance_records')
-      .select('*')
-      .eq('monthly_data_id', md.id);
+    // Fetch all records with pagination (Supabase default limit is 1000)
+    const allRecords: Record<string, unknown>[] = [];
+    let from = 0;
+    const pageSize = 1000;
+
+    while (true) {
+      const { data: records, error: fetchError } = await supabase
+        .from('variance_records')
+        .select('*')
+        .eq('monthly_data_id', md.id)
+        .range(from, from + pageSize - 1);
+
+      if (fetchError) {
+        console.error('Error fetching variance records:', fetchError);
+        break;
+      }
+
+      if (!records || records.length === 0) break;
+      allRecords.push(...records);
+      if (records.length < pageSize) break;
+      from += pageSize;
+    }
 
     results.push({
       id: md.id,
@@ -117,7 +144,7 @@ export async function getAllMonthlyData(): Promise<MonthlyData[]> {
       month: md.month,
       year: md.year,
       uploadDate: new Date(md.upload_date),
-      records: (records || []).map(toVarianceRecord),
+      records: allRecords.map(toVarianceRecord),
     });
   }
 
@@ -135,10 +162,28 @@ export async function getMonthlyDataById(id: number): Promise<MonthlyData | unde
     return undefined;
   }
 
-  const { data: records } = await supabase
-    .from('variance_records')
-    .select('*')
-    .eq('monthly_data_id', id);
+  // Fetch all records with pagination
+  const allRecords: Record<string, unknown>[] = [];
+  let from = 0;
+  const pageSize = 1000;
+
+  while (true) {
+    const { data: records, error: fetchError } = await supabase
+      .from('variance_records')
+      .select('*')
+      .eq('monthly_data_id', id)
+      .range(from, from + pageSize - 1);
+
+    if (fetchError) {
+      console.error('Error fetching variance records:', fetchError);
+      break;
+    }
+
+    if (!records || records.length === 0) break;
+    allRecords.push(...records);
+    if (records.length < pageSize) break;
+    from += pageSize;
+  }
 
   return {
     id: md.id,
@@ -146,7 +191,7 @@ export async function getMonthlyDataById(id: number): Promise<MonthlyData | unde
     month: md.month,
     year: md.year,
     uploadDate: new Date(md.upload_date),
-    records: (records || []).map(toVarianceRecord),
+    records: allRecords.map(toVarianceRecord),
   };
 }
 
@@ -187,16 +232,33 @@ export async function getAllRecordsCombined(): Promise<{
       periodsSet.set(periodKey, { month: md.month, year: md.year });
     }
 
-    const { data: varRecords } = await supabase
-      .from('variance_records')
-      .select('*')
-      .eq('monthly_data_id', md.id);
+    // Fetch all records with pagination (Supabase default limit is 1000)
+    let from = 0;
+    const pageSize = 1000;
 
-    for (const record of varRecords || []) {
-      const varRecord = toVarianceRecord(record);
-      varRecord.periodMonth = md.month;
-      varRecord.periodYear = String(md.year);
-      records.push(varRecord);
+    while (true) {
+      const { data: varRecords, error: fetchError } = await supabase
+        .from('variance_records')
+        .select('*')
+        .eq('monthly_data_id', md.id)
+        .range(from, from + pageSize - 1);
+
+      if (fetchError) {
+        console.error('Error fetching variance records:', fetchError);
+        break;
+      }
+
+      if (!varRecords || varRecords.length === 0) break;
+
+      for (const record of varRecords) {
+        const varRecord = toVarianceRecord(record);
+        varRecord.periodMonth = md.month;
+        varRecord.periodYear = String(md.year);
+        records.push(varRecord);
+      }
+
+      if (varRecords.length < pageSize) break;
+      from += pageSize;
     }
   }
 
