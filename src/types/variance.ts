@@ -28,10 +28,21 @@ export interface MonthlyData {
   records: VarianceRecord[];
 }
 
+export interface CommentaryDriver {
+  description: string;
+  amount: number;
+}
+
+export interface PromoTypeSection {
+  promoType: string;
+  total: number;
+  drivers: CommentaryDriver[];
+}
+
 export interface CommentarySection {
   title: string;
   total: number;
-  drivers: { description: string; amount: number }[];
+  promoTypes: PromoTypeSection[];
 }
 
 export interface Commentary {

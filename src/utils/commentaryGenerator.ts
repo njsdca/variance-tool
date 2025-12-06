@@ -1,4 +1,4 @@
-import type { VarianceRecord, Commentary, CommentarySection } from '../types/variance';
+import type { VarianceRecord, Commentary, CommentarySection, PromoTypeSection, CommentaryDriver } from '../types/variance';
 import { VARIANCE_TYPE_MAPPING } from '../types/variance';
 
 // Format number as $Xk shorthand
@@ -68,32 +68,52 @@ function cleanDescription(customer: string, promotionName: string): string {
   return `${customer} ${desc}`;
 }
 
+// Type for internal grouping structure
+interface PromoTypeData {
+  total: number;
+  items: Map<string, { description: string; amount: number }>;
+}
+
+interface CategoryData {
+  total: number;
+  promoTypes: Map<string, PromoTypeData>;
+}
+
 // Generate commentary from filtered variance records
 export function generateCommentary(records: VarianceRecord[]): Commentary {
-  // Initialize sections
-  const sections: Record<string, { total: number; items: Map<string, { description: string; amount: number }> }> = {
-    changedSinceLBE2: { total: 0, items: new Map() },
-    favorableClosures: { total: 0, items: new Map() },
-    overPerformance: { total: 0, items: new Map() },
-    promotionMiss: { total: 0, items: new Map() },
+  // Initialize sections with promo type grouping
+  const sections: Record<string, CategoryData> = {
+    changedSinceLBE2: { total: 0, promoTypes: new Map() },
+    favorableClosures: { total: 0, promoTypes: new Map() },
+    overPerformance: { total: 0, promoTypes: new Map() },
+    promotionMiss: { total: 0, promoTypes: new Map() },
   };
 
-  // Group records by variance type and aggregate by promotion
+  // Group records by category > promo type > promotion
   for (const record of records) {
     const category = VARIANCE_TYPE_MAPPING[record.varianceType];
 
     if (category && sections[category]) {
       sections[category].total += record.sumOfVariance;
 
+      const promoType = record.promotionType || 'Other';
+
+      // Get or create promo type bucket
+      if (!sections[category].promoTypes.has(promoType)) {
+        sections[category].promoTypes.set(promoType, { total: 0, items: new Map() });
+      }
+      const promoTypeData = sections[category].promoTypes.get(promoType)!;
+      promoTypeData.total += record.sumOfVariance;
+
       // Create a key for grouping - use customer + promotion name
       const description = cleanDescription(record.customer, record.promotionName);
       const key = description.toLowerCase();
 
-      const existing = sections[category].items.get(key);
+      const existing = promoTypeData.items.get(key);
       if (existing) {
         existing.amount += record.sumOfVariance;
       } else {
-        sections[category].items.set(key, {
+        promoTypeData.items.set(key, {
           description,
           amount: record.sumOfVariance,
         });
@@ -101,9 +121,9 @@ export function generateCommentary(records: VarianceRecord[]): Commentary {
     }
   }
 
-  // Sort items by absolute amount (descending) and take top 5
-  const processSection = (section: typeof sections.changedSinceLBE2): CommentarySection => {
-    const itemsArray = Array.from(section.items.values());
+  // Process promo type into drivers (top 5 + other)
+  const processPromoType = (promoTypeData: PromoTypeData): CommentaryDriver[] => {
+    const itemsArray = Array.from(promoTypeData.items.values());
     const sortedItems = itemsArray.sort(
       (a, b) => Math.abs(b.amount) - Math.abs(a.amount)
     );
@@ -111,12 +131,12 @@ export function generateCommentary(records: VarianceRecord[]): Commentary {
     const topItems = sortedItems.slice(0, 5);
     const otherItems = sortedItems.slice(5);
 
-    const drivers = topItems.map((item) => ({
+    const drivers: CommentaryDriver[] = topItems.map((item) => ({
       description: item.description,
       amount: item.amount,
     }));
 
-    // Add "Other minor" if there are more items
+    // Add "Other" if there are more items
     if (otherItems.length > 0) {
       const otherTotal = otherItems.reduce((sum, item) => sum + item.amount, 0);
       if (Math.abs(otherTotal) > 0) {
@@ -127,11 +147,23 @@ export function generateCommentary(records: VarianceRecord[]): Commentary {
       }
     }
 
-    return {
-      title: '',
-      total: section.total,
-      drivers,
-    };
+    return drivers;
+  };
+
+  // Process section into promo types sorted by absolute total
+  const processSection = (categoryData: CategoryData): PromoTypeSection[] => {
+    const promoTypesArray: PromoTypeSection[] = [];
+
+    for (const [promoType, data] of categoryData.promoTypes) {
+      promoTypesArray.push({
+        promoType,
+        total: data.total,
+        drivers: processPromoType(data),
+      });
+    }
+
+    // Sort promo types by absolute total (descending)
+    return promoTypesArray.sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
   };
 
   const totalVariance = Object.values(sections).reduce((sum, s) => sum + s.total, 0);
@@ -141,20 +173,24 @@ export function generateCommentary(records: VarianceRecord[]): Commentary {
 
   return {
     changedSinceLBE2: {
-      ...processSection(sections.changedSinceLBE2),
       title: 'Changed since LBE2',
+      total: sections.changedSinceLBE2.total,
+      promoTypes: processSection(sections.changedSinceLBE2),
     },
     favorableClosures: {
-      ...processSection(sections.favorableClosures),
       title: 'Favorable Closures',
+      total: sections.favorableClosures.total,
+      promoTypes: processSection(sections.favorableClosures),
     },
     overPerformance: {
-      ...processSection(sections.overPerformance),
       title: 'Over Performance',
+      total: sections.overPerformance.total,
+      promoTypes: processSection(sections.overPerformance),
     },
     promotionMiss: {
-      ...processSection(sections.promotionMiss),
       title: 'Promotion Miss',
+      total: sections.promotionMiss.total,
+      promoTypes: processSection(sections.promotionMiss),
     },
     totalVariance,
     summary,
@@ -162,7 +198,7 @@ export function generateCommentary(records: VarianceRecord[]): Commentary {
 }
 
 function generateSummary(
-  sections: Record<string, { total: number; items: Map<string, { description: string; amount: number }> }>,
+  sections: Record<string, CategoryData>,
   totalVariance: number
 ): string {
   const favorable: string[] = [];
@@ -208,12 +244,15 @@ export function formatCommentaryText(commentary: Commentary): string {
   const lines: string[] = [];
 
   const formatSection = (section: CommentarySection) => {
-    if (section.drivers.length === 0 && section.total === 0) return;
+    if (section.promoTypes.length === 0 && section.total === 0) return;
 
     lines.push(`${section.title}: ${formatCurrency(section.total)}`);
 
-    for (const driver of section.drivers) {
-      lines.push(`  ${formatCurrency(driver.amount)} from ${driver.description}`);
+    for (const promoType of section.promoTypes) {
+      lines.push(`  ${promoType.promoType}: ${formatCurrency(promoType.total)}`);
+      for (const driver of promoType.drivers) {
+        lines.push(`    ${formatCurrency(driver.amount)} from ${driver.description}`);
+      }
     }
 
     lines.push('');
@@ -233,12 +272,15 @@ export function formatCommentaryText(commentary: Commentary): string {
 // Format commentary as rich HTML for copying
 export function formatCommentaryHTML(commentary: Commentary): string {
   const formatSection = (section: CommentarySection): string => {
-    if (section.drivers.length === 0 && section.total === 0) return '';
+    if (section.promoTypes.length === 0 && section.total === 0) return '';
 
     let html = `<p><strong>${section.title}:</strong> ${formatCurrency(section.total)}<br/>`;
 
-    for (const driver of section.drivers) {
-      html += `&nbsp;&nbsp;${formatCurrency(driver.amount)} from ${driver.description}<br/>`;
+    for (const promoType of section.promoTypes) {
+      html += `&nbsp;&nbsp;<strong>${promoType.promoType}:</strong> ${formatCurrency(promoType.total)}<br/>`;
+      for (const driver of promoType.drivers) {
+        html += `&nbsp;&nbsp;&nbsp;&nbsp;${formatCurrency(driver.amount)} from ${driver.description}<br/>`;
+      }
     }
 
     html += '</p>';
