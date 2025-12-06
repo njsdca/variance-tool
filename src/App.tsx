@@ -148,9 +148,17 @@ function App() {
       {pendingFile && (
         <SaveModal
           fileName={pendingFile.file.name}
+          recordCount={pendingFile.records.length}
           onSave={handleSave}
           onCancel={handleCancelSave}
         />
+      )}
+
+      {isLoading && (
+        <div className="loading-overlay">
+          <div className="loading-spinner"></div>
+          <p>Processing file...</p>
+        </div>
       )}
     </div>
   );
