@@ -195,6 +195,15 @@ h3 {
   overflow: auto;
 }
 
+/* Allow filter dropdowns to overflow */
+.card:has(.filter-panel) {
+  overflow: visible;
+}
+
+.card-body:has(.filter-panel) {
+  overflow: visible;
+}
+
 /* Table Card - fills remaining space */
 .card.table-card {
   flex: 1;
@@ -273,11 +282,13 @@ h3 {
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: flex-end;
+  overflow: visible;
 }
 
 .filter-group {
   flex: 1;
   min-width: 160px;
+  position: relative;
 }
 
 .filter-label {
@@ -431,7 +442,7 @@ h3 {
   border: 1px solid var(--gray-200);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 100;
+  z-index: 1000;
   max-height: 300px;
   display: flex;
   flex-direction: column;
