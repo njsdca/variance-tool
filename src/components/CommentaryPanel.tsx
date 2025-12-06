@@ -116,82 +116,73 @@ export function CommentaryPanel({ data }: CommentaryPanelProps) {
     setCommentary(null);
   };
 
-  // Show generate button when no commentary yet
-  if (!commentary) {
-    return (
-      <div className="card">
-        <div className="card-header">
-          <h3>Commentary</h3>
-        </div>
-        <div className="card-body">
-          <div className="empty-state">
-            <div className="empty-state-icon">💬</div>
-            <p className="empty-state-text">
-              {data.length === 0
-                ? 'Load data and apply filters to generate commentary.'
-                : `${data.length.toLocaleString()} records selected.`}
-            </p>
-            {data.length > 0 && (
-              <button className="btn btn-primary mt-2" onClick={handleGenerate}>
-                Generate Commentary
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const totalAmountClass = commentary.totalVariance >= 0 ? 'positive' : 'negative';
+  const totalAmountClass = commentary ? (commentary.totalVariance >= 0 ? 'positive' : 'negative') : '';
 
   return (
     <div className="card">
       <div className="card-header">
         <h3>Commentary</h3>
-        <button className="btn btn-secondary btn-sm" onClick={handleClear}>
-          Clear
-        </button>
+        {data.length > 0 && (
+          <div className="commentary-header-actions">
+            {commentary && (
+              <button className="btn btn-secondary btn-sm" onClick={handleClear}>
+                Clear
+              </button>
+            )}
+            <button className="btn btn-primary btn-sm" onClick={handleGenerate}>
+              {commentary ? 'Regenerate' : 'Generate'}
+            </button>
+          </div>
+        )}
       </div>
       <div className="card-body commentary-body">
-        <div className="commentary-sections">
-          <CategoryAccordion section={commentary.changedSinceLBE2} />
-          <CategoryAccordion section={commentary.favorableClosures} />
-          <CategoryAccordion section={commentary.overPerformance} />
-          <CategoryAccordion section={commentary.promotionMiss} />
-        </div>
-
-        <div className="commentary-total">
-          <div className="commentary-total-header">
-            <span className="commentary-total-title">Total Variance</span>
-            <span className={`commentary-total-amount ${totalAmountClass}`}>
-              {formatCurrency(commentary.totalVariance)}
-            </span>
+        {!commentary ? (
+          <div className="commentary-empty">
+            <p>Click "Generate" to create commentary from the filtered data.</p>
           </div>
-          <p className="commentary-summary">{commentary.summary}</p>
-        </div>
+        ) : (
+          <>
+            <div className="commentary-sections">
+              <CategoryAccordion section={commentary.changedSinceLBE2} />
+              <CategoryAccordion section={commentary.favorableClosures} />
+              <CategoryAccordion section={commentary.overPerformance} />
+              <CategoryAccordion section={commentary.promotionMiss} />
+            </div>
 
-        <div className="copy-btn-container">
-          {copied ? (
-            <div className="copy-success">
-              <span>✓</span> Copied to clipboard!
+            <div className="commentary-total">
+              <div className="commentary-total-header">
+                <span className="commentary-total-title">Total Variance</span>
+                <span className={`commentary-total-amount ${totalAmountClass}`}>
+                  {formatCurrency(commentary.totalVariance)}
+                </span>
+              </div>
+              <p className="commentary-summary">{commentary.summary}</p>
             </div>
-          ) : (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button
-                className="btn btn-primary"
-                onClick={() => handleCopy('rich')}
-              >
-                Copy with Formatting
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={() => handleCopy('text')}
-              >
-                Copy as Text
-              </button>
+
+            <div className="copy-btn-container">
+              {copied ? (
+                <div className="copy-success">
+                  <span>✓</span> Copied to clipboard!
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => handleCopy('rich')}
+                  >
+                    Copy with Formatting
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => handleCopy('text')}
+                  >
+                    Copy as Text
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
