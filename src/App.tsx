@@ -7,7 +7,7 @@ import { CommentaryPanel } from './components/CommentaryPanel';
 import { DatasetManager } from './components/DatasetManager';
 import { SaveModal } from './components/SaveModal';
 import { ExportModal } from './components/ExportModal';
-import { VarianceChart, type ChartFilter } from './components/VarianceChart';
+import { VarianceChart } from './components/VarianceChart';
 import { parseFile } from './utils/fileParser';
 import { saveMonthlyData, getAllRecordsCombined } from './db/database';
 import { exportToCSV } from './utils/csvExport';
@@ -18,14 +18,21 @@ type Period = { month: string; year: number; label: string };
 
 function App() {
   const [allData, setAllData] = useState<VarianceRecord[]>([]);
-  const [filters, setFilters] = useState<Filters>({ account: '', mecCustomer: '', salesRep: '', period: '' });
+  const [filters, setFilters] = useState<Filters>({
+    account: [],
+    mecCustomer: [],
+    salesRep: [],
+    customer: [],
+    varianceType: [],
+    promotionType: [],
+    period: '',
+  });
   const [isParsingFile, setIsParsingFile] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [pendingFile, setPendingFile] = useState<{ file: File; records: VarianceRecord[] } | null>(null);
   const [availablePeriods, setAvailablePeriods] = useState<Period[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [chartFilter, setChartFilter] = useState<ChartFilter | null>(null);
 
   // Load all data on mount
   const loadAllData = useCallback(async () => {
@@ -48,9 +55,15 @@ function App() {
   // Filter data based on selections
   const filteredData = useMemo(() => {
     return allData.filter((record) => {
-      if (filters.account && record.account !== filters.account) return false;
-      if (filters.mecCustomer && record.mecCustomer !== filters.mecCustomer) return false;
-      if (filters.salesRep && record.salesRep !== filters.salesRep) return false;
+      // Multi-select filters - if array is empty, show all; otherwise check if value is in array
+      if (filters.account.length > 0 && !filters.account.includes(record.account || '')) return false;
+      if (filters.mecCustomer.length > 0 && !filters.mecCustomer.includes(record.mecCustomer || '')) return false;
+      if (filters.salesRep.length > 0 && !filters.salesRep.includes(record.salesRep || '')) return false;
+      if (filters.customer.length > 0 && !filters.customer.includes(record.customer || '')) return false;
+      if (filters.varianceType.length > 0 && !filters.varianceType.includes(record.varianceType || '')) return false;
+      if (filters.promotionType.length > 0 && !filters.promotionType.includes(record.promotionType || '')) return false;
+
+      // Single select period filter
       if (filters.period) {
         const recordPeriod = `${record.periodMonth} ${record.periodYear}`;
         if (recordPeriod !== filters.period) return false;
@@ -61,26 +74,6 @@ function App() {
 
   // Only show records with Include = true in the table
   const tableData = useMemo(() => {
-    let result = filteredData.filter((record) => record.include === true);
-
-    // Apply chart filter if active
-    if (chartFilter) {
-      result = result.filter((record) => {
-        const matchesPromoType = chartFilter.promotionType
-          ? (record.promotionType || 'Other') === chartFilter.promotionType
-          : true;
-        const matchesVarianceType = chartFilter.varianceType
-          ? record.varianceType === chartFilter.varianceType
-          : true;
-        return matchesPromoType && matchesVarianceType;
-      });
-    }
-
-    return result;
-  }, [filteredData, chartFilter]);
-
-  // Data for chart (before chart filter is applied)
-  const chartSourceData = useMemo(() => {
     return filteredData.filter((record) => record.include === true);
   }, [filteredData]);
 
@@ -172,13 +165,7 @@ function App() {
           )}
 
           {/* Variance Chart */}
-          {chartSourceData.length > 0 && (
-            <VarianceChart
-              data={chartSourceData}
-              activeFilter={chartFilter}
-              onFilterChange={setChartFilter}
-            />
-          )}
+          {tableData.length > 0 && <VarianceChart data={tableData} />}
 
           {/* Data Table */}
           <div className="card table-card">

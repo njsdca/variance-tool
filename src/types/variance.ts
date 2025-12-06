@@ -55,9 +55,12 @@ export interface Commentary {
 }
 
 export interface Filters {
-  account: string;
-  mecCustomer: string;
-  salesRep: string;
+  account: string[];
+  mecCustomer: string[];
+  salesRep: string[];
+  customer: string[];
+  varianceType: string[];
+  promotionType: string[];
   period: string; // "all" or "Month Year" format
 }
 

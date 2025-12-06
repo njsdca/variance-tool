@@ -307,6 +307,75 @@ h3 {
   border-color: var(--brand-primary);
 }
 
+.filter-select-single {
+  position: relative;
+}
+
+/* Multi-select filter wrapper */
+.filter-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.filter-input-wrapper .filter-select {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.filter-input-wrapper .filter-select-single {
+  position: relative;
+  opacity: 1;
+  flex: 1;
+  padding-right: 2rem;
+}
+
+.filter-display {
+  flex: 1;
+  padding: 0.375rem 0.5rem;
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  border: 1px solid var(--gray-300);
+  border-radius: 4px;
+  background: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  color: var(--gray-700);
+}
+
+.filter-clear-btn {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: var(--gray-200);
+  color: var(--gray-600);
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem;
+  z-index: 3;
+  transition: all 0.15s;
+}
+
+.filter-clear-btn:hover {
+  background: var(--brand-primary);
+  color: white;
+}
+
 .record-count {
   font-size: 0.75rem;
   color: var(--gray-400);

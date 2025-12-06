@@ -13,15 +13,8 @@ import {
 import type { VarianceRecord } from '../types/variance';
 import { formatCurrency } from '../utils/commentaryGenerator';
 
-export interface ChartFilter {
-  promotionType: string | null;
-  varianceType: string | null;
-}
-
 interface VarianceChartProps {
   data: VarianceRecord[];
-  activeFilter: ChartFilter | null;
-  onFilterChange: (filter: ChartFilter | null) => void;
 }
 
 // Minimum absolute value threshold to include in chart
@@ -97,7 +90,7 @@ function CustomTooltip({ active, payload, label }: {
   );
 }
 
-export function VarianceChart({ data, activeFilter, onFilterChange }: VarianceChartProps) {
+export function VarianceChart({ data }: VarianceChartProps) {
   // Transform data for stacked bar chart
   // X-axis: Promotion Types, Stacks: Variance Types
   const { chartData, varianceTypes } = useMemo(() => {
@@ -158,22 +151,6 @@ export function VarianceChart({ data, activeFilter, onFilterChange }: VarianceCh
     };
   }, [data]);
 
-  const handleBarClick = (promoType: string, varianceType: string) => {
-    // If clicking the same filter, clear it
-    if (
-      activeFilter?.promotionType === promoType &&
-      activeFilter?.varianceType === varianceType
-    ) {
-      onFilterChange(null);
-    } else {
-      onFilterChange({ promotionType: promoType, varianceType });
-    }
-  };
-
-  const handleClearFilter = () => {
-    onFilterChange(null);
-  };
-
   if (data.length === 0 || chartData.length === 0) {
     return null;
   }
@@ -182,11 +159,6 @@ export function VarianceChart({ data, activeFilter, onFilterChange }: VarianceCh
     <div className="card chart-card">
       <div className="card-header">
         <h3>Variance by Promotion Type</h3>
-        {activeFilter && (
-          <button className="btn btn-secondary btn-sm" onClick={handleClearFilter}>
-            Clear Filter
-          </button>
-        )}
       </div>
       <div className="card-body chart-body">
         <ResponsiveContainer width="100%" height={280}>
@@ -222,30 +194,10 @@ export function VarianceChart({ data, activeFilter, onFilterChange }: VarianceCh
                 stackId="stack"
                 fill={getVarianceTypeColor(varianceType)}
                 name={varianceType}
-                cursor="pointer"
-                onClick={(data) => {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const barData = data as any;
-                  if (barData && barData.promotionType) {
-                    handleBarClick(barData.promotionType as string, varianceType);
-                  }
-                }}
-                opacity={
-                  activeFilter
-                    ? activeFilter.varianceType === varianceType
-                      ? 1
-                      : 0.3
-                    : 1
-                }
               />
             ))}
           </BarChart>
         </ResponsiveContainer>
-        {activeFilter && (
-          <div className="chart-filter-indicator">
-            Showing: <strong>{activeFilter.promotionType}</strong> / <strong>{getShortLabel(activeFilter.varianceType!)}</strong>
-          </div>
-        )}
       </div>
     </div>
   );
