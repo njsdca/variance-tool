@@ -13,36 +13,45 @@ import {
 import type { VarianceRecord } from '../types/variance';
 import { formatCurrency } from '../utils/commentaryGenerator';
 
+export interface ChartFilter {
+  promotionType: string | null;
+  varianceType: string | null;
+}
+
 interface VarianceChartProps {
   data: VarianceRecord[];
+  activeFilter: ChartFilter | null;
+  onFilterChange: (filter: ChartFilter | null) => void;
 }
 
-// Color palette for promotion types
-const PROMO_TYPE_COLORS: Record<string, string> = {
-  'Display': '#3b82f6',
-  'TPR': '#8b5cf6',
-  'EDLP': '#06b6d4',
-  'Scan': '#f59e0b',
-  'Billback': '#10b981',
-  'Lump Sum': '#ec4899',
-  'Spoils': '#6366f1',
-  'Off Invoice': '#14b8a6',
-  'Other': '#94a3b8',
+// Minimum absolute value threshold to include in chart
+const MIN_THRESHOLD = 5;
+
+// Color palette for variance types
+const VARIANCE_TYPE_COLORS: Record<string, string> = {
+  'Promo Additions/Removals': '#3b82f6',
+  'Promotion Additions': '#60a5fa',
+  'Promotion Removals': '#2563eb',
+  'Promo Changes': '#1d4ed8',
+  'Favorable Under Performance': '#10b981',
+  'Favorable No Performance': '#34d399',
+  'Under Accrued Variance': '#f59e0b',
+  'Non-Accrued Variance': '#ef4444',
 };
 
-// Get color for a promotion type
-function getPromoTypeColor(promoType: string): string {
-  return PROMO_TYPE_COLORS[promoType] || PROMO_TYPE_COLORS['Other'];
+// Get color for a variance type
+function getVarianceTypeColor(varianceType: string): string {
+  return VARIANCE_TYPE_COLORS[varianceType] || '#94a3b8';
 }
 
-// Short labels for variance types
+// Short labels for variance types (for legend)
 const VARIANCE_TYPE_SHORT_LABELS: Record<string, string> = {
-  'Promo Additions/Removals': 'Additions/Removals',
+  'Promo Additions/Removals': 'Add/Remove',
   'Promotion Additions': 'Additions',
   'Promotion Removals': 'Removals',
   'Promo Changes': 'Changes',
-  'Favorable Under Performance': 'Favorable Under',
-  'Favorable No Performance': 'Favorable No Perf',
+  'Favorable Under Performance': 'Fav Under',
+  'Favorable No Performance': 'Fav No Perf',
   'Under Accrued Variance': 'Under Accrued',
   'Non-Accrued Variance': 'Non-Accrued',
 };
@@ -54,24 +63,28 @@ function getShortLabel(varianceType: string): string {
 // Custom tooltip
 function CustomTooltip({ active, payload, label }: {
   active?: boolean;
-  payload?: Array<{ name: string; value: number; color: string }>;
+  payload?: Array<{ name: string; value: number; color: string; dataKey: string }>;
   label?: string;
 }) {
   if (!active || !payload || payload.length === 0) return null;
 
-  const total = payload.reduce((sum, entry) => sum + entry.value, 0);
+  // Filter out zero values
+  const nonZeroPayload = payload.filter(entry => entry.value !== 0);
+  if (nonZeroPayload.length === 0) return null;
+
+  const total = nonZeroPayload.reduce((sum, entry) => sum + entry.value, 0);
 
   return (
     <div className="chart-tooltip">
       <p className="chart-tooltip-label">{label}</p>
       <div className="chart-tooltip-items">
-        {payload.map((entry, index) => (
+        {nonZeroPayload.map((entry, index) => (
           <div key={index} className="chart-tooltip-item">
             <span
               className="chart-tooltip-color"
               style={{ backgroundColor: entry.color }}
             />
-            <span className="chart-tooltip-name">{entry.name}:</span>
+            <span className="chart-tooltip-name">{getShortLabel(entry.dataKey)}:</span>
             <span className="chart-tooltip-value">{formatCurrency(entry.value)}</span>
           </div>
         ))}
@@ -84,50 +97,56 @@ function CustomTooltip({ active, payload, label }: {
   );
 }
 
-export function VarianceChart({ data }: VarianceChartProps) {
+export function VarianceChart({ data, activeFilter, onFilterChange }: VarianceChartProps) {
   // Transform data for stacked bar chart
-  const { chartData, promoTypes } = useMemo(() => {
-    // Group by variance type and promotion type
+  // X-axis: Promotion Types, Stacks: Variance Types
+  const { chartData, varianceTypes } = useMemo(() => {
+    // Filter out records below threshold
+    const filteredData = data.filter(
+      record => Math.abs(record.sumOfVariance) >= MIN_THRESHOLD
+    );
+
+    // Group by promotion type and variance type
     const grouped = new Map<string, Map<string, number>>();
-    const allPromoTypes = new Set<string>();
+    const allVarianceTypes = new Set<string>();
 
-    for (const record of data) {
-      const varianceType = record.varianceType;
+    for (const record of filteredData) {
       const promoType = record.promotionType || 'Other';
+      const varianceType = record.varianceType;
 
-      if (!grouped.has(varianceType)) {
-        grouped.set(varianceType, new Map());
+      if (!grouped.has(promoType)) {
+        grouped.set(promoType, new Map());
       }
 
-      const promoMap = grouped.get(varianceType)!;
-      promoMap.set(promoType, (promoMap.get(promoType) || 0) + record.sumOfVariance);
-      allPromoTypes.add(promoType);
+      const varMap = grouped.get(promoType)!;
+      varMap.set(varianceType, (varMap.get(varianceType) || 0) + record.sumOfVariance);
+      allVarianceTypes.add(varianceType);
     }
 
     // Convert to chart data format
     const chartData: Array<Record<string, string | number>> = [];
 
-    for (const [varianceType, promoMap] of grouped) {
+    for (const [promoType, varMap] of grouped) {
       const row: Record<string, string | number> = {
-        varianceType: getShortLabel(varianceType),
-        fullName: varianceType,
+        promotionType: promoType,
       };
 
-      for (const [promoType, value] of promoMap) {
-        row[promoType] = value;
+      for (const [varianceType, value] of varMap) {
+        row[varianceType] = value;
       }
 
       chartData.push(row);
     }
 
     // Sort by total absolute variance
+    const sortedVarianceTypes = Array.from(allVarianceTypes);
     chartData.sort((a, b) => {
-      const totalA = Array.from(allPromoTypes).reduce(
-        (sum, pt) => sum + Math.abs((a[pt] as number) || 0),
+      const totalA = sortedVarianceTypes.reduce(
+        (sum, vt) => sum + Math.abs((a[vt] as number) || 0),
         0
       );
-      const totalB = Array.from(allPromoTypes).reduce(
-        (sum, pt) => sum + Math.abs((b[pt] as number) || 0),
+      const totalB = sortedVarianceTypes.reduce(
+        (sum, vt) => sum + Math.abs((b[vt] as number) || 0),
         0
       );
       return totalB - totalA;
@@ -135,9 +154,25 @@ export function VarianceChart({ data }: VarianceChartProps) {
 
     return {
       chartData,
-      promoTypes: Array.from(allPromoTypes).sort(),
+      varianceTypes: sortedVarianceTypes.sort(),
     };
   }, [data]);
+
+  const handleBarClick = (promoType: string, varianceType: string) => {
+    // If clicking the same filter, clear it
+    if (
+      activeFilter?.promotionType === promoType &&
+      activeFilter?.varianceType === varianceType
+    ) {
+      onFilterChange(null);
+    } else {
+      onFilterChange({ promotionType: promoType, varianceType });
+    }
+  };
+
+  const handleClearFilter = () => {
+    onFilterChange(null);
+  };
 
   if (data.length === 0 || chartData.length === 0) {
     return null;
@@ -146,21 +181,26 @@ export function VarianceChart({ data }: VarianceChartProps) {
   return (
     <div className="card chart-card">
       <div className="card-header">
-        <h3>Variance by Type</h3>
+        <h3>Variance by Promotion Type</h3>
+        {activeFilter && (
+          <button className="btn btn-secondary btn-sm" onClick={handleClearFilter}>
+            Clear Filter
+          </button>
+        )}
       </div>
       <div className="card-body chart-body">
         <ResponsiveContainer width="100%" height={280}>
           <BarChart
             data={chartData}
-            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+            margin={{ top: 20, right: 30, left: 20, bottom: 40 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis
-              dataKey="varianceType"
+              dataKey="promotionType"
               tick={{ fontSize: 11, fill: '#64748b' }}
-              angle={-35}
+              angle={-25}
               textAnchor="end"
-              height={70}
+              height={50}
               interval={0}
             />
             <YAxis
@@ -170,20 +210,41 @@ export function VarianceChart({ data }: VarianceChartProps) {
             />
             <Tooltip content={<CustomTooltip />} />
             <Legend
-              wrapperStyle={{ fontSize: 11, paddingTop: 10 }}
+              wrapperStyle={{ fontSize: 10, paddingTop: 10 }}
+              formatter={(value) => getShortLabel(value)}
             />
             <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1} />
-            {promoTypes.map((promoType) => (
+            {varianceTypes.map((varianceType) => (
               <Bar
-                key={promoType}
-                dataKey={promoType}
+                key={varianceType}
+                dataKey={varianceType}
                 stackId="stack"
-                fill={getPromoTypeColor(promoType)}
-                name={promoType}
+                fill={getVarianceTypeColor(varianceType)}
+                name={varianceType}
+                cursor="pointer"
+                onClick={(data) => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const barData = data as any;
+                  if (barData && barData.promotionType) {
+                    handleBarClick(barData.promotionType as string, varianceType);
+                  }
+                }}
+                opacity={
+                  activeFilter
+                    ? activeFilter.varianceType === varianceType
+                      ? 1
+                      : 0.3
+                    : 1
+                }
               />
             ))}
           </BarChart>
         </ResponsiveContainer>
+        {activeFilter && (
+          <div className="chart-filter-indicator">
+            Showing: <strong>{activeFilter.promotionType}</strong> / <strong>{getShortLabel(activeFilter.varianceType!)}</strong>
+          </div>
+        )}
       </div>
     </div>
   );

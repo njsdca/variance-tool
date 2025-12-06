@@ -1101,6 +1101,16 @@ h3 {
   font-family: var(--font-body);
 }
 
+.chart-filter-indicator {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--gray-600);
+  padding: 0.5rem;
+  background: var(--gray-50);
+  border-radius: 4px;
+  margin-top: 0.5rem;
+}
+
 /* In-card Loading State */
 .loading-state {
   display: flex;
