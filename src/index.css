@@ -362,21 +362,21 @@ h3 {
 
 /* AG Grid Theme Overrides */
 .ag-theme-alpine {
-  --ag-header-height: 36px;
-  --ag-row-height: 32px;
+  --ag-header-height: 32px;
+  --ag-row-height: 28px;
   --ag-header-background-color: var(--gray-50);
   --ag-header-foreground-color: var(--gray-700);
   --ag-row-hover-color: var(--gray-50);
   --ag-selected-row-background-color: rgba(220, 53, 69, 0.08);
   --ag-font-family: var(--font-body);
-  --ag-font-size: 12px;
+  --ag-font-size: 11px;
   --ag-border-color: var(--gray-200);
   --ag-borders: none;
   --ag-row-border-color: var(--gray-100);
 }
 
 .ag-theme-alpine .ag-header-cell {
-  font-size: 0.6875rem;
+  font-size: 0.625rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -466,8 +466,8 @@ h3 {
 
 .category-amount {
   font-family: var(--font-mono);
-  font-size: 0.9375rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 400;
 }
 
 .category-amount.positive {
@@ -520,8 +520,8 @@ h3 {
 
 .promo-type-amount {
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 400;
 }
 
 .promo-type-amount.positive {
@@ -584,8 +584,8 @@ h3 {
 
 .commentary-total-amount {
   font-family: var(--font-mono);
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: 1.125rem;
+  font-weight: 500;
 }
 
 .commentary-total-amount.positive {
