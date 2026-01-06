@@ -29,6 +29,155 @@ function cleanDescription(customer: string, promotionName: string): string {
   return desc;
 }
 
+// Extract key descriptive term from a promo name for summarization
+function extractKeyTerm(promoName: string): string {
+  let cleaned = promoName.trim();
+
+  // Remove date patterns (Oct 2025, Nov_Dec'25, Dec2025, 2025, etc.)
+  // Use word boundaries to avoid matching "Mar" in "Market", "Aug" in "August", etc.
+  cleaned = cleaned
+    .replace(/[_\s,]*\b(January|February|March|April|May|June|July|August|September|October|November|December)\b[_\s']*\d{0,4}/gi, '')
+    .replace(/[_\s,]*\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b[_\s']*\d{0,4}/gi, '')
+    .replace(/[_\s]*'\d{2}/g, '')
+    .replace(/[_\s]*\b\d{4}\b/g, '')
+    .replace(/\s*\b(Q[1-4])\b\s*/gi, '')
+    .trim();
+
+  // Check if underscore-separated format (e.g., Target_PromoType_Details)
+  if (cleaned.includes('_')) {
+    const parts = cleaned.split('_').map(p => p.trim()).filter(p => p);
+
+    // Remove first part if it looks like a customer prefix (single capitalized word)
+    if (parts.length > 1 && /^[A-Z][a-z]+$/.test(parts[0])) {
+      parts.shift();
+    }
+
+    // Take key parts (up to 2 meaningful segments)
+    const keyParts = parts.slice(0, 2);
+
+    // Convert camelCase to spaces and clean up
+    const result = keyParts
+      .map(p => p
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+      )
+      .join(' ')
+      .trim();
+
+    return result || promoName;
+  }
+
+  // Space-separated format - extract retailer/company name (first capitalized words)
+  // Stop at: dash separator, size indicators, numbers, lowercase words
+
+  // First check for " - " separator (e.g., "Food Lion - 1.15oz...")
+  const dashIndex = cleaned.indexOf(' - ');
+  if (dashIndex > 0) {
+    return cleaned.substring(0, dashIndex).trim();
+  }
+
+  // Extract leading company name - stop at size/count indicators or product details
+  const words = cleaned.split(/\s+/);
+  const companyWords: string[] = [];
+
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+
+    // Stop at size indicators (1.15oz, 8ct, 6ct, etc.) - also catch ".15oz" patterns
+    if (/^\d/.test(word) || /^\.?\d*\.?\d+(oz|ct|lb)$/i.test(word)) {
+      break;
+    }
+    // Stop at common product/promo keywords that indicate end of company name
+    if (/^(TPR|EDLP|EDLC|POP|Scan|Display|Shipper|Slotting|Freefills|MCBs|Allowance|Fees?|Cycle|Line|Drive|Holly|Fairshare|Merchandising|New|Item|Intro|Check|Lanes|Endcap)$/i.test(word)) {
+      break;
+    }
+    // Stop at words with special chars mid-word (except apostrophe for possessives)
+    if (/[&()]/.test(word)) {
+      break;
+    }
+    // Handle "All Others" pattern - include it as part of company name
+    if (word === 'All' && i + 1 < words.length && words[i + 1] === 'Others') {
+      companyWords.push('All Others');
+      break; // Stop after "All Others"
+    }
+    if (word === 'Others' && companyWords[companyWords.length - 1] === 'All') {
+      continue; // Already handled above
+    }
+    companyWords.push(word);
+  }
+
+  // If we got something meaningful, return it
+  if (companyWords.length > 0) {
+    let result = companyWords.join(' ').replace(/[,\-]+$/, '').trim();
+    // Add space in camelCase words (e.g., "MetropolitanLine" -> "Metropolitan Line")
+    result = result.replace(/([a-z])([A-Z])/g, '$1 $2');
+    return result;
+  }
+
+  return promoName;
+}
+
+// Format a list of terms with commas and "and"
+function formatTermList(terms: string[]): string {
+  if (terms.length === 0) return '';
+  if (terms.length === 1) return terms[0];
+  if (terms.length === 2) return `${terms[0]} and ${terms[1]}`;
+  return `${terms.slice(0, -1).join(', ')}, and ${terms[terms.length - 1]}`;
+}
+
+// Generate a single-line summary for drivers
+function summarizeDrivers(drivers: Array<{ description: string; amount: number }>, total: number): string {
+  if (drivers.length === 0) return '';
+
+  // If single driver, use "Entire variance from"
+  if (drivers.length === 1) {
+    return `Entire variance from ${drivers[0].description}`;
+  }
+
+  const topDriver = drivers[0];
+  const topDriverPct = Math.abs(topDriver.amount) / Math.abs(total);
+
+  // If one driver dominates (>90% of total), use "Majority from"
+  if (topDriverPct > 0.9) {
+    return `Majority from ${topDriver.description}`;
+  }
+
+  // Multiple drivers - extract key terms, aggregate amounts by term, and list
+  const termTotals = new Map<string, number>();
+
+  for (const driver of drivers) {
+    const term = extractKeyTerm(driver.description);
+    termTotals.set(term, (termTotals.get(term) || 0) + driver.amount);
+  }
+
+  // Sort by absolute amount descending
+  const sortedTerms = Array.from(termTotals.entries())
+    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+
+  // Filter out insignificant amounts (less than 1% of total)
+  const significantTerms = sortedTerms.filter(([, amount]) =>
+    Math.abs(amount) >= Math.abs(total) * 0.01
+  );
+
+  // Limit to top 5 contributors
+  const topTerms = significantTerms.slice(0, 5);
+  const remainingTerms = significantTerms.slice(5);
+
+  // Format each term with its amount
+  const termsWithAmounts = topTerms.map(([term, amount]) =>
+    `${term} ${formatCurrency(amount)}`
+  );
+
+  // Add "and X others" if there are more
+  if (remainingTerms.length > 0) {
+    const othersTotal = remainingTerms.reduce((sum, [, amt]) => sum + amt, 0);
+    const otherLabel = remainingTerms.length === 1 ? 'other' : 'others';
+    termsWithAmounts.push(`${remainingTerms.length} ${otherLabel} ${formatCurrency(othersTotal)}`);
+  }
+
+  return formatTermList(termsWithAmounts);
+}
+
 // Type for internal grouping structure
 interface PromoTypeData {
   total: number;
@@ -82,33 +231,20 @@ export function generateCommentary(records: VarianceRecord[]): Commentary {
     }
   }
 
-  // Process promo type into drivers (top 5 + other)
+  // Process promo type into a single summary driver
   const processPromoType = (promoTypeData: PromoTypeData): CommentaryDriver[] => {
     const itemsArray = Array.from(promoTypeData.items.values());
     const sortedItems = itemsArray.sort(
       (a, b) => Math.abs(b.amount) - Math.abs(a.amount)
     );
 
-    const topItems = sortedItems.slice(0, 5);
-    const otherItems = sortedItems.slice(5);
+    // Generate a single summary line for all drivers
+    const summary = summarizeDrivers(sortedItems, promoTypeData.total);
 
-    const drivers: CommentaryDriver[] = topItems.map((item) => ({
-      description: item.description,
-      amount: item.amount,
-    }));
-
-    // Add "Other" if there are more items
-    if (otherItems.length > 0) {
-      const otherTotal = otherItems.reduce((sum, item) => sum + item.amount, 0);
-      if (Math.abs(otherTotal) > 0) {
-        drivers.push({
-          description: `Other (${otherItems.length} items)`,
-          amount: otherTotal,
-        });
-      }
-    }
-
-    return drivers;
+    return [{
+      description: summary,
+      amount: promoTypeData.total,
+    }];
   };
 
   // Process section into promo types sorted by absolute total
@@ -212,7 +348,7 @@ export function formatCommentaryText(commentary: Commentary): string {
     for (const promoType of section.promoTypes) {
       lines.push(`  ${promoType.promoType}: ${formatCurrency(promoType.total)}`);
       for (const driver of promoType.drivers) {
-        lines.push(`    ${formatCurrency(driver.amount)} from ${driver.description}`);
+        lines.push(`    ${driver.description}`);
       }
     }
 
@@ -240,7 +376,7 @@ export function formatCommentaryHTML(commentary: Commentary): string {
     for (const promoType of section.promoTypes) {
       html += `&nbsp;&nbsp;<strong>${promoType.promoType}:</strong> ${formatCurrency(promoType.total)}<br/>`;
       for (const driver of promoType.drivers) {
-        html += `&nbsp;&nbsp;&nbsp;&nbsp;${formatCurrency(driver.amount)} from ${driver.description}<br/>`;
+        html += `&nbsp;&nbsp;&nbsp;&nbsp;${driver.description}<br/>`;
       }
     }
 
