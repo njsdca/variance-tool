@@ -17,55 +17,16 @@ export function formatCurrency(amount: number): string {
   return `${sign}$${absAmount.toFixed(0)}${endSign}`;
 }
 
-// Clean up promotion description - remove redundant customer name
+// Get promotion description - use full promo name for context
 function cleanDescription(customer: string, promotionName: string): string {
-  let desc = (promotionName || '').trim();
-  const customerLower = (customer || '').toLowerCase().trim();
+  const desc = (promotionName || '').trim();
 
-  if (!customerLower) {
-    return desc || 'Unknown';
-  }
-
-  // Extract meaningful words from customer name (ignore short words like "of", "-", etc.)
-  const customerWords = customerLower
-    .split(/[\s\-]+/)
-    .filter((w) => w.length > 2);
-
-  // Remove leading words from promotion that match customer name words
-  const descWords = desc.split(/\s+/);
-  let startIndex = 0;
-
-  for (let i = 0; i < descWords.length && i < 5; i++) {
-    const wordLower = descWords[i].toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (wordLower.length <= 2) {
-      startIndex = i + 1;
-      continue;
-    }
-    // Check if this word is part of the customer name
-    const isCustomerWord = customerWords.some(
-      (cw) => cw === wordLower || cw.includes(wordLower) || wordLower.includes(cw)
-    );
-    if (isCustomerWord) {
-      startIndex = i + 1;
-    } else {
-      break;
-    }
-  }
-
-  desc = descWords.slice(startIndex).join(' ').trim();
-
-  // Remove common prefixes that might remain
-  if (desc.startsWith('-')) {
-    desc = desc.slice(1).trim();
-  }
-
-  // If description is empty, just return customer name
+  // If no promotion name, fall back to customer
   if (!desc) {
-    return customer;
+    return customer || 'Unknown';
   }
 
-  // Return customer + cleaned description
-  return `${customer} ${desc}`;
+  return desc;
 }
 
 // Type for internal grouping structure
